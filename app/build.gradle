@@ -1,0 +1,99 @@
+import org.aspectj.bridge.IMessage
+import org.aspectj.bridge.MessageHandler
+import org.aspectj.tools.ajc.Main
+
+
+apply plugin: 'com.android.application'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    })
+    compile 'com.android.support:appcompat-v7:25.1.0'
+    testCompile 'junit:junit:4.12'
+
+    compile project(':mylib')
+    compile 'org.aspectj:aspectjrt:1.8.9'
+}
+
+android {
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    
+    compileSdkVersion 25
+    buildToolsVersion "25.0.0"
+    defaultConfig {
+        applicationId "com.jeven.aopdemo4andriod"
+        minSdkVersion 14
+        targetSdkVersion 25
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        jackOptions {
+            enabled true
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+final def log = project.logger
+
+project.android.applicationVariants.all { variant ->
+
+    if (!variant.buildType.isDebuggable()) {
+        log.debug("Skipping non-debuggable build type '${variant.buildType.name}'.")
+        return;
+    }
+
+    log.error "========================";
+    log.error "Aspectj切片开始编织Class!";
+    log.error "========================";
+
+    JavaCompile javaCompile = variant.javaCompile
+    javaCompile.doLast {
+        String[] args = ["-showWeaveInfo",
+                         "-1.8",
+                         "-inpath", javaCompile.destinationDir.toString(),
+                         "-aspectpath", javaCompile.classpath.asPath,
+                         "-d", javaCompile.destinationDir.toString(),
+                         "-classpath", javaCompile.classpath.asPath,
+                         "-bootclasspath", project.android.bootClasspath.join(File.pathSeparator)]
+        log.debug "ajc args: " + Arrays.toString(args)
+
+        MessageHandler handler = new MessageHandler(true);
+        new Main().run(args, handler);
+        for (IMessage message : handler.getMessages(null, true)) {
+            switch (message.getKind()) {
+                case IMessage.ABORT:
+                case IMessage.ERROR:
+                case IMessage.FAIL:
+                    log.error message.message, message.thrown
+                    break;
+                case IMessage.WARNING:
+                    log.warn message.message, message.thrown
+                    break;
+                case IMessage.INFO:
+                    log.info message.message, message.thrown
+                    break;
+                case IMessage.DEBUG:
+                    log.debug message.message, message.thrown
+                    break;
+            }
+        }
+    }
+}
+
+
